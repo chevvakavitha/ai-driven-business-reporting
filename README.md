@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AI-Driven Automated Dataset Insight System</title>
+  
 </head>
 
 <body>
