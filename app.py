@@ -2,174 +2,166 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+import os
 
-st.set_page_config(page_title="AI Business Reporting", layout="wide")
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(page_title="AI Insight System", layout="wide")
 
-st.title("📊 AI-Driven Business Reporting System")
-st.caption("Upload data → Generate insights → Get clear decisions")
+# ---------------- STYLE ----------------
+st.markdown("""
+<style>
+.stApp { background-color: #f6f8fc; }
+.card {
+    background: #ffffff;
+    padding: 18px;
+    border-radius: 12px;
+}
+.big {
+    font-size: 32px;
+    font-weight: 700;
+}
+.small {
+    font-size: 13px;
+    color: #6b7280;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------- FILE UPLOAD ----------------
-uploaded_file = st.file_uploader(
-    "Upload CSV or Excel file",
-    type=["csv", "xlsx"]
-)
+file = st.file_uploader("Upload CSV or Excel dataset", type=["csv", "xlsx"])
 
-if uploaded_file is None:
+if not file:
+    st.info("Upload a dataset to begin analysis.")
     st.stop()
 
-# ---------------- READ DATA ----------------
-if uploaded_file.name.endswith(".csv"):
-    df = pd.read_csv(uploaded_file)
-else:
-    df = pd.read_excel(uploaded_file)
+# ---------------- LOAD DATA ----------------
+df = pd.read_csv(file) if file.name.endswith("csv") else pd.read_excel(file)
 
-st.subheader("📁 Data Preview")
-st.dataframe(df.head())
+dataset_title = os.path.splitext(file.name)[0].replace("_", " ").replace("-", " ").title()
+st.title(f"📊 {dataset_title}")
+st.caption("Automated insights generated directly from your dataset")
 
-# ---------------- COLUMN SELECTION ----------------
-st.subheader("⚙️ Analysis Configuration")
+# ---------------- NUMERIC COLUMN DETECTION ----------------
+numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
 
-all_cols = df.columns.tolist()
-num_cols = df.select_dtypes(include=np.number).columns.tolist()
-
-if len(num_cols) == 0:
-    st.error("Dataset must contain at least one numeric column.")
+if not numeric_cols:
+    st.error("No numeric columns found in this dataset.")
     st.stop()
 
-x_col = st.selectbox("Select X-axis column (date or category)", all_cols)
-y_col = st.selectbox("Select numeric column to analyze", num_cols)
+metric = st.selectbox("Select column to analyze", numeric_cols)
+series = df[metric].dropna()
 
-agg_method = st.selectbox(
-    "Aggregation Method",
-    ["Sum", "Average", "Count"]
-)
-
+# ---------------- CHART SELECTION ----------------
 chart_type = st.selectbox(
-    "Chart Type",
+    "Select chart type",
     [
-        "Line Chart",
-        "Bar Chart",
-        "Area Chart",
-        "Scatter Plot",
-        "Histogram",
-        "Box Plot",
-        "Rolling Trend"
+        "Line (Trend)",
+        "Bar (Comparison)",
+        "Scatter (Relationship)",
+        "Area (Magnitude)",
+        "Step (Change Points)",
+        "Histogram (Distribution)",
+        "Box (Outliers)",
+        "Rolling Average (Smoothed Trend)",
+        "Cumulative Sum (Progression)"
     ]
 )
 
-# ---------------- ACTION BUTTON ----------------
-generate = st.button("🚀 Generate Dashboard")
+# ---------------- METRICS ----------------
+total = series.sum()
+avg = series.mean()
+growth = ((series.iloc[-1] - series.iloc[0]) / abs(series.iloc[0])) * 100 if series.iloc[0] != 0 else 0
+volatility = series.std()
+trend = "Increasing" if growth > 0 else "Decreasing"
 
-if not generate:
-    st.info("Click **Generate Dashboard** to see results.")
-    st.stop()
-
-# ---------------- DATA PREPARATION ----------------
-df_clean = df[[x_col, y_col]].dropna()
-
-# Convert x_col to datetime if possible
-try:
-    df_clean[x_col] = pd.to_datetime(df_clean[x_col])
-    is_datetime = True
-except:
-    is_datetime = False
-
-# Aggregate safely
-if agg_method == "Sum":
-    df_agg = df_clean.groupby(x_col)[y_col].sum().reset_index()
-elif agg_method == "Average":
-    df_agg = df_clean.groupby(x_col)[y_col].mean().reset_index()
-else:
-    df_agg = df_clean.groupby(x_col)[y_col].count().reset_index()
-
-df_agg = df_agg.sort_values(x_col)
-
-# Limit categories for visibility
-if not is_datetime and len(df_agg) > 20:
-    df_agg = df_agg.head(20)
-
-# ---------------- KPIs ----------------
-st.subheader("📌 Key Metrics")
-
-total = df_agg[y_col].sum()
-average = df_agg[y_col].mean()
-latest = df_agg[y_col].iloc[-1]
-previous = df_agg[y_col].iloc[-2] if len(df_agg) > 1 else latest
-growth = ((latest - previous) / previous) * 100 if previous != 0 else 0
+# ---------------- KPI DISPLAY ----------------
+st.markdown("## 🔢 Dataset Overview")
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Total", f"{total:,.2f}")
-c2.metric("Average", f"{average:,.2f}")
-c3.metric("Latest", f"{latest:,.2f}")
-c4.metric("Growth %", f"{growth:.2f}%", delta=f"{growth:.2f}%")
 
-# ---------------- CHART ----------------
-st.subheader("📈 Data Visualization")
+c1.markdown(f"<div class='card'><div class='big'>{total:.2f}</div><div class='small'>Total {metric}</div></div>", unsafe_allow_html=True)
+c2.markdown(f"<div class='card'><div class='big'>{avg:.2f}</div><div class='small'>Average {metric}</div></div>", unsafe_allow_html=True)
+c3.markdown(f"<div class='card'><div class='big'>{growth:.1f}%</div><div class='small'>Overall Change</div></div>", unsafe_allow_html=True)
+c4.markdown(f"<div class='card'><div class='big'>{trend}</div><div class='small'>Trend Direction</div></div>", unsafe_allow_html=True)
 
-fig, ax = plt.subplots(figsize=(6, 3))
+# ---------------- CHART (ALL TYPES IMPLEMENTED) ----------------
+st.markdown("## 📈 Visual Analysis")
 
-# Charts that must use RAW DATA
-if chart_type == "Scatter Plot":
-    ax.scatter(df_clean[x_col], df_clean[y_col])
+fig = plt.figure(figsize=(9, 4))
+plt.clf()
 
-elif chart_type == "Histogram":
-    ax.hist(df_clean[y_col], bins=20)
+if chart_type == "Line (Trend)":
+    plt.plot(series.values, marker="o")
+    plt.ylabel(metric)
+    plt.title(f"{metric} Trend")
 
-elif chart_type == "Box Plot":
-    ax.boxplot(df_clean[y_col])
+elif chart_type == "Bar (Comparison)":
+    plt.bar(range(len(series)), series.values)
+    plt.ylabel(metric)
+    plt.title(f"{metric} Comparison")
 
-# Charts that must use AGGREGATED DATA
-elif chart_type == "Line Chart":
-    ax.plot(df_agg[x_col], df_agg[y_col])
+elif chart_type == "Scatter (Relationship)":
+    plt.scatter(range(len(series)), series.values)
+    plt.ylabel(metric)
+    plt.xlabel("Index")
+    plt.title(f"{metric} Relationship")
 
-elif chart_type == "Bar Chart":
-    ax.bar(df_agg[x_col], df_agg[y_col])
+elif chart_type == "Area (Magnitude)":
+    plt.fill_between(range(len(series)), series.values, alpha=0.6)
+    plt.ylabel(metric)
+    plt.title(f"{metric} Magnitude")
 
-elif chart_type == "Area Chart":
-    ax.fill_between(range(len(df_agg)), df_agg[y_col], alpha=0.5)
-    ax.set_xticks(range(len(df_agg)))
-    ax.set_xticklabels(df_agg[x_col], rotation=45)
+elif chart_type == "Step (Change Points)":
+    plt.step(range(len(series)), series.values, where="mid")
+    plt.ylabel(metric)
+    plt.title(f"{metric} Step Changes")
 
-elif chart_type == "Rolling Trend":
-    if len(df_agg) >= 3:
-        rolling = df_agg[y_col].rolling(3).mean()
-        ax.plot(df_agg[x_col], df_agg[y_col], label="Actual")
-        ax.plot(df_agg[x_col], rolling, linestyle="--", label="Trend")
-        ax.legend()
-    else:
-        ax.plot(df_agg[x_col], df_agg[y_col])
+elif chart_type == "Histogram (Distribution)":
+    plt.hist(series.values, bins=25)
+    plt.xlabel(metric)
+    plt.ylabel("Frequency")
+    plt.title(f"{metric} Distribution")
 
-ax.set_xlabel(x_col)
-ax.set_ylabel(y_col)
+elif chart_type == "Box (Outliers)":
+    plt.boxplot(series.values, vert=False)
+    plt.xlabel(metric)
+    plt.title(f"{metric} Outliers")
+
+elif chart_type == "Rolling Average (Smoothed Trend)":
+    rolling = series.rolling(window=5).mean()
+    plt.plot(series.values, alpha=0.3, label="Raw")
+    plt.plot(rolling.values, linewidth=2, label="Rolling Avg (5)")
+    plt.legend()
+    plt.ylabel(metric)
+    plt.title(f"{metric} Rolling Average")
+
+elif chart_type == "Cumulative Sum (Progression)":
+    plt.plot(series.cumsum().values)
+    plt.ylabel(f"Cumulative {metric}")
+    plt.title(f"Cumulative {metric}")
+
 st.pyplot(fig)
+plt.close(fig)
 
-
-# ---------------- PREDICTION ----------------
-st.subheader("🔮 Prediction (Based on Your Data)")
-
-if len(df_agg) >= 3:
-    trend = df_agg[y_col].pct_change().tail(3).mean() * 100
-    if trend < 0:
-        st.error(f"Projected short-term trend: {trend:.2f}% decline")
-    else:
-        st.success(f"Projected short-term trend: {trend:.2f}% growth")
-else:
-    st.warning("Not enough data for prediction (need at least 3 points).")
-
-# ---------------- FINAL DECISIONS ----------------
-st.subheader("🧠 Final Decision Summary")
+# ---------------- DATA INSIGHT ----------------
+st.markdown("## 🧠 What the Data Shows")
 
 if growth < 0:
-    st.write("🔴 Performance declined recently. Immediate investigation required.")
+    st.error(f"`{metric}` shows a decreasing pattern.")
+elif volatility > avg:
+    st.warning(f"`{metric}` varies significantly across records.")
 else:
-    st.write("🟢 Performance improved compared to previous period.")
+    st.success(f"`{metric}` remains relatively stable.")
 
-if len(df_agg) >= 3 and trend < 0:
-    st.write("🟠 Short-term outlook shows risk. Focus on efficiency and demand.")
-elif len(df_agg) >= 3:
-    st.write("🟢 Short-term outlook is stable. Continue strategy.")
+# ---------------- FORECAST ----------------
+st.markdown("## 🔮 Trend Direction")
 
-if abs(growth) > 25:
-    st.write("🟠 High volatility detected. Monitor closely.")
-
-st.info("All outputs are generated strictly from the uploaded dataset.")
+if len(series) < 6:
+    st.info("Not enough data points to infer a trend direction.")
+else:
+    X = np.arange(len(series)).reshape(-1, 1)
+    y = series.values.reshape(-1, 1)
+    model = LinearRegression().fit(X, y)
+    direction = "Upward 📈" if model.coef_[0][0] > 0 else "Downward 📉"
+    st.info(f"Expected direction: **{direction}**")
