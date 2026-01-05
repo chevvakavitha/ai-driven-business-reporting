@@ -7,7 +7,7 @@
 
 <body>
 
-<h1>🧠 AI-Driven Automated Dataset Insight System</h1>
+<h1>🧠 Business-Reporting-Dashboard</h1>
 
 <p>
 A <strong>production-grade Streamlit application</strong> that automatically analyzes any dataset and generates
